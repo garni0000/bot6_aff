@@ -1,25 +1,17 @@
 {
-  "name": "gxg-bot",
+  "name": "telegram-bot",
   "version": "1.0.0",
-  "description": "Bot Telegram pour la gestion de parrainage et retraits",
+  "description": "Un bot Telegram pour GxGcash",
   "main": "bot.js",
   "scripts": {
-    "start": "node bot.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node bot.js"
   },
   "dependencies": {
+    "dotenv": "^16.0.3",
     "telegraf": "^4.12.2",
     "mongoose": "^8.0.3"
   },
   "engines": {
-    "node": ">=16.x"
-  },
-  "keywords": [
-    "telegram",
-    "bot",
-    "mongodb",
-    "parrainage"
-  ],
-  "author": "Votre Nom",
-  "license": "ISC"
+    "node": "18.x"
+  }
 }
