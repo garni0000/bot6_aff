@@ -41,7 +41,7 @@ const Withdrawal = mongoose.model('Withdrawal', withdrawalSchema);
 // Initialisation du bot
 const bot = new Telegraf('7693938099:AAHdfvjtHj0HGukmfVfF5jNv-WWceB3Ka9c'); // Remplacez par votre token
 const withdrawalProcess = new Map();
-const ADMIN_ID = '7446988979'; // Remplacez par votre ID Telegram (en string)
+const ADMIN_ID = '1613186921'; // Remplacez par votre ID Telegram (en string)
 
 // Middleware de débogage
 bot.use(async (ctx, next) => {
