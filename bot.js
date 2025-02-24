@@ -48,18 +48,14 @@ async function isUserInChannels(userId) {
   }
 }
 
-// Enregistre l'utilisateur et gère le parrainage
+// Enregistre l'utilisateur sans attribuer immédiatement la récompense au parrain
 async function registerUser(userId, username, referrerId) {
   try {
     let user = await User.findOne({ id: userId });
     if (!user) {
-      user = await User.create({ id: userId, username, referrer_id: referrerId });
+      // On initialise joined_channels à false pour que la récompense ne soit pas attribuée avant la vérification
+      user = await User.create({ id: userId, username, referrer_id: referrerId, joined_channels: false });
       console.log(`✅ Utilisateur ${userId} enregistré`);
-      if (referrerId) {
-        await User.updateOne({ id: referrerId }, { $inc: { invited_count: 1, tickets: 1 } });
-        await updateUserBalance(referrerId);
-        await notifyReferrer(referrerId, userId);
-      }
     }
   } catch (err) {
     console.error('❌ Erreur enregistrement utilisateur:', err);
@@ -80,7 +76,7 @@ async function updateUserBalance(userId) {
   }
 }
 
-// Notifie le parrain lors d'une inscription via son lien
+// Notifie le parrain lors d'une inscription validée via son lien
 async function notifyReferrer(referrerId, newUserId) {
   try {
     await sendMessage(referrerId, `🎉 Un nouvel utilisateur (${newUserId}) s'est inscrit via votre lien de parrainage !`);
@@ -108,11 +104,26 @@ bot.start(async (ctx) => {
   });
 });
 
-// Vérification de l'abonnement aux canaux
+// Vérification de l'abonnement aux canaux et attribution de la récompense si applicable
 bot.action('check', async (ctx) => {
   const userId = ctx.from.id;
+  const user = await User.findOne({ id: userId });
+
+  if (!user) {
+    return ctx.reply('❌ Utilisateur non trouvé.');
+  }
+
   if (await isUserInChannels(userId)) {
-    await User.updateOne({ id: userId }, { joined_channels: true });
+    if (!user.joined_channels) {
+      await User.updateOne({ id: userId }, { joined_channels: true });
+      // Attribution de la récompense au parrain si l'utilisateur possède un referrer
+      if (user.referrer_id) {
+        await User.updateOne({ id: user.referrer_id }, { $inc: { invited_count: 1, tickets: 1 } });
+        await updateUserBalance(user.referrer_id);
+        await notifyReferrer(user.referrer_id, userId);
+      }
+    }
+
     // Construction du clavier principal
     let keyboard = [
       [{ text: 'Mon compte 💳' }, { text: 'Inviter📢' }],
@@ -120,10 +131,12 @@ bot.action('check', async (ctx) => {
       [{ text: 'Support📩' }, { text: 'Tuto 📖' }],
       [{ text: 'Tombola 🎟️' }]
     ];
+
     // Bouton Admin visible uniquement pour l'admin
     if (String(userId) === ADMIN_ID) {
       keyboard.push([{ text: 'Admin' }]);
     }
+
     ctx.reply('✅ Accès autorisé !', {
       reply_markup: {
         keyboard: keyboard,
