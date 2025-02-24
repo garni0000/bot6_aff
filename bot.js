@@ -93,7 +93,7 @@ bot.start(async (ctx) => {
 
   await registerUser(userId, username, referrerId);
 
-  await sendMessage(userId, `Bienvenue sur CashXelitebot le platforme qui vas te faire gagner du cash ! Rejoignez les canaux pour debloquer ton acces:`, {
+  await sendMessage(userId, `**Bienvenue sur CashXelitebot le platforme qui vas te faire gagner du cash !**\n Rejoignez les canaux pour debloquer ton acces:`, {
     reply_markup: {
       inline_keyboard: [
         [{ text: 'Canal 1', url: 'https://t.me/+NS16bwRVpBs1ZGM0' }],
