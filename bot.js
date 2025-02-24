@@ -1,55 +1,41 @@
 const { Telegraf } = require('telegraf');
 const http = require('http');
-const mongoose = require('mongoose');
+const { User, Withdrawal } = require('./database');
 
-// Connexion à MongoDB
-mongoose.connect('mongodb+srv://josh:JcipLjQSbhxbruLU@cluster0.hn4lm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('✅ Connecté à MongoDB'))
-  .catch(err => {
-    console.error('❌ Erreur de connexion MongoDB:', err);
-    process.exit(1);
-  });
-
-// Définition des modèles MongoDB
-const userSchema = new mongoose.Schema({
-  id: { type: Number, required: true, unique: true },
-  username: String,
-  referrer_id: Number,
-  invited_count: { type: Number, default: 0 },
-  tickets: { type: Number, default: 0 },
-  balance: { type: Number, default: 0 },
-  joined_channels: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now },
-});
-
-const withdrawalSchema = new mongoose.Schema({
-  userId: Number,
-  amount: Number,
-  paymentMethod: String,
-  country: String,
-  phone: String,
-  email: String,
-  createdAt: { type: Date, default: Date.now },
-});
-
-const User = mongoose.model('User', userSchema);
-const Withdrawal = mongoose.model('Withdrawal', withdrawalSchema);
-
-// Initialisation du bot
 const bot = new Telegraf('7693938099:AAHdfvjtHj0HGukmfVfF5jNv-WWceB3Ka9c'); // Remplacez par votre token
 const withdrawalProcess = new Map();
-const ADMIN_ID = '1613186921'; // Remplacez par votre ID Telegram (en string)
+const ADMIN_ID = '1613186921'; // Remplacez par votre ID Telegram admin (en string)
 
-// Middleware de débogage
+// Middleware de débogage et gestion d'erreurs
 bot.use(async (ctx, next) => {
-  console.log(`Update reçu: ${JSON.stringify(ctx.update)}`);
-  await next();
+  try {
+    console.log(`Update reçu: ${JSON.stringify(ctx.update)}`);
+    await next();
+  } catch (error) {
+    if (error.response?.error_code === 403 && error.response?.description.includes('blocked by the user')) {
+      console.log(`⚠️ Utilisateur ${ctx.from?.id} a bloqué le bot. Suppression de l'utilisateur.`);
+      await User.deleteOne({ id: ctx.from?.id });
+    } else {
+      console.error('❌ Erreur middleware:', error);
+    }
+  }
 });
 
-// Fonction utilitaire : Vérifie si l'utilisateur est abonné aux deux canaux
+// Fonction utilitaire pour envoyer un message avec gestion d'erreur
+async function sendMessage(chatId, text, options = {}) {
+  try {
+    await bot.telegram.sendMessage(chatId, text, options);
+  } catch (err) {
+    if (err.response && err.response.error_code === 403) {
+      console.log(`⚠️ Utilisateur ${chatId} a bloqué le bot. Suppression de l'utilisateur de la base de données.`);
+      await User.deleteOne({ id: chatId });
+    } else {
+      console.error(`❌ Erreur lors de l'envoi d'un message à ${chatId} :`, err);
+    }
+  }
+}
+
+// Vérifie si l'utilisateur est abonné aux deux canaux
 async function isUserInChannels(userId) {
   try {
     const member1 = await bot.telegram.getChatMember('-1001923341484', userId);
@@ -62,7 +48,7 @@ async function isUserInChannels(userId) {
   }
 }
 
-// Fonction utilitaire : Enregistre l'utilisateur et gère le parrainage
+// Enregistre l'utilisateur et gère le parrainage
 async function registerUser(userId, username, referrerId) {
   try {
     let user = await User.findOne({ id: userId });
@@ -80,7 +66,7 @@ async function registerUser(userId, username, referrerId) {
   }
 }
 
-// Fonction utilitaire : Met à jour le solde de l'utilisateur selon le nombre d'invitations
+// Met à jour le solde de l'utilisateur selon le nombre d'invitations
 async function updateUserBalance(userId) {
   const user = await User.findOne({ id: userId });
   if (user) {
@@ -94,13 +80,10 @@ async function updateUserBalance(userId) {
   }
 }
 
-// Fonction utilitaire : Notifie le parrain lors d'une inscription via son lien
+// Notifie le parrain lors d'une inscription via son lien
 async function notifyReferrer(referrerId, newUserId) {
   try {
-    const referrer = await User.findOne({ id: referrerId });
-    if (referrer) {
-      await bot.telegram.sendMessage(referrerId, `🎉 Un nouvel utilisateur (${newUserId}) s'est inscrit via votre lien de parrainage !`);
-    }
+    await sendMessage(referrerId, `🎉 Un nouvel utilisateur (${newUserId}) s'est inscrit via votre lien de parrainage !`);
   } catch (err) {
     console.error('❌ Erreur notification parrain:', err);
   }
@@ -114,7 +97,7 @@ bot.start(async (ctx) => {
 
   await registerUser(userId, username, referrerId);
 
-  ctx.reply(`Bienvenue sur GxGcash ! Rejoignez nos canaux :`, {
+  await sendMessage(userId, `Bienvenue sur GxGcash ! Rejoignez nos canaux :`, {
     reply_markup: {
       inline_keyboard: [
         [{ text: 'Canal 1', url: 'https://t.me/+NS16bwRVpBs1ZGM0' }],
@@ -125,19 +108,25 @@ bot.start(async (ctx) => {
   });
 });
 
-// Action "check" : Vérification de l'abonnement aux canaux
+// Vérification de l'abonnement aux canaux
 bot.action('check', async (ctx) => {
   const userId = ctx.from.id;
   if (await isUserInChannels(userId)) {
     await User.updateOne({ id: userId }, { joined_channels: true });
+    // Construction du clavier principal
+    let keyboard = [
+      [{ text: 'Mon compte 💳' }, { text: 'Inviter📢' }],
+      [{ text: 'Play to win 🎰' }, { text: 'Withdrawal💸' }],
+      [{ text: 'Support📩' }, { text: 'Tuto 📖' }],
+      [{ text: 'Tombola 🎟️' }]
+    ];
+    // Bouton Admin visible uniquement pour l'admin
+    if (String(userId) === ADMIN_ID) {
+      keyboard.push([{ text: 'Admin' }]);
+    }
     ctx.reply('✅ Accès autorisé !', {
       reply_markup: {
-        keyboard: [
-          [{ text: 'Mon compte 💳' }, { text: 'Inviter📢' }],
-          [{ text: 'Play to win 🎰' }, { text: 'Withdrawal💸' }],
-          [{ text: 'Support📩' }, { text: 'Tuto 📖' }],
-          [{ text: 'Tombola 🎟️' }]
-        ],
+        keyboard: keyboard,
         resize_keyboard: true
       }
     });
@@ -147,33 +136,89 @@ bot.action('check', async (ctx) => {
 });
 
 // Gestion des commandes textuelles de base
-bot.hears(['Mon compte 💳', 'Inviter📢', 'Play to win 🎰', 'Withdrawal💸', 'Support📩', 'Tuto 📖', 'Tombola 🎟️'], async (ctx) => {
-  const userId = ctx.message.from.id;
-  const user = await User.findOne({ id: userId });
+bot.hears(
+  ['Mon compte 💳', 'Inviter📢', 'Play to win 🎰', 'Withdrawal💸', 'Support📩', 'Tuto 📖', 'Tombola 🎟️', 'Admin'],
+  async (ctx) => {
+    const userId = ctx.message.from.id;
+    const user = await User.findOne({ id: userId });
+    if (!user) return ctx.reply('❌ Utilisateur non trouvé.');
 
-  if (!user) return ctx.reply('❌ Utilisateur non trouvé.');
-
-  switch (ctx.message.text) {
-    case 'Mon compte 💳':
-      return ctx.reply(`💰 Solde: ${user.balance} Fcfa\n📈 Invités: ${user.invited_count}\n🎟️ Tickets: ${user.tickets}`);
-    case 'Inviter📢':
-      return ctx.reply(`🔗 Lien de parrainage : https://t.me/cashXelitebot?start=${userId}`);
-    case 'Play to win 🎰':
-      return ctx.reply(`🎮 Jouer ici : https://t.me/cashXelitebot/cash?ref=${userId}`);
-    case 'Withdrawal💸':
-      if (user.balance >= 30000) {
-        withdrawalProcess.set(userId, { step: 'awaiting_payment_method' });
-        return ctx.reply('💸 Méthode de paiement :');
-      } else {
-        return ctx.reply('❌ Minimum 30 000 Fcfa');
-      }
-    case 'Support📩':
-      return ctx.reply('📩 Contact : @Medatt00');
-    case 'Tuto 📖':
-      return ctx.reply('📖 Guide : https://t.me/gxgcaca');
-    case 'Tombola 🎟️':
-      return ctx.reply('🎟️ 1 invitation = 1 ticket');
+    switch (ctx.message.text) {
+      case 'Mon compte 💳':
+        return ctx.reply(`💰 Solde: ${user.balance} Fcfa\n📈 Invités: ${user.invited_count}\n🎟️ Tickets: ${user.tickets}`);
+      case 'Inviter📢':
+        return ctx.reply(`🔗 Lien de parrainage : https://t.me/cashXelitebot?start=${userId}`);
+      case 'Play to win 🎰':
+        return ctx.reply(`🎮 Jouer ici : https://t.me/cashXelitebot/cash?ref=${userId}`);
+      case 'Withdrawal💸':
+        if (user.balance >= 30000) {
+          withdrawalProcess.set(userId, { step: 'awaiting_payment_method' });
+          return ctx.reply('💸 Méthode de paiement :');
+        } else {
+          return ctx.reply('❌ Minimum 30 000 Fcfa');
+        }
+      case 'Support📩':
+        return ctx.reply('📩 Contact : @Medatt00');
+      case 'Tuto 📖':
+        return ctx.reply('📖 Guide : https://t.me/gxgcaca');
+      case 'Tombola 🎟️':
+        return ctx.reply('🎟️ 1 invitation = 1 ticket');
+      case 'Admin':
+        if (String(ctx.message.from.id) === ADMIN_ID) {
+          await ctx.replyWithMarkdown('🔧 *Menu Admin*', {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '👥 Total Utilisateurs', callback_data: 'admin_users' }],
+                [{ text: '📅 Utilisateurs/mois', callback_data: 'admin_month' }],
+                [{ text: '📢 Diffuser message', callback_data: 'admin_broadcast' }]
+              ]
+            }
+          });
+        } else {
+          return ctx.reply('❌ Accès refusé. Vous n\'êtes pas administrateur.');
+        }
+        break;
+    }
   }
+);
+
+// Commande /admin (alternative via commande)
+bot.command('admin', async (ctx) => {
+  if (String(ctx.from.id) !== ADMIN_ID) {
+    return ctx.reply('❌ Accès refusé. Vous n\'êtes pas administrateur.');
+  }
+  await ctx.replyWithMarkdown('🔧 *Menu Admin*', {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '👥 Total Utilisateurs', callback_data: 'admin_users' }],
+        [{ text: '📅 Utilisateurs/mois', callback_data: 'admin_month' }],
+        [{ text: '📢 Diffuser message', callback_data: 'admin_broadcast' }]
+      ]
+    }
+  });
+});
+
+// Commande /send pour diffuser un message à tous les utilisateurs
+bot.command('send', async (ctx) => {
+  if (String(ctx.from.id) !== ADMIN_ID) {
+    return ctx.reply('❌ Accès refusé. Vous n\'êtes pas administrateur.');
+  }
+  // Récupération du message (texte après /send)
+  const messageToSend = ctx.message.text.split(' ').slice(1).join(' ');
+  if (!messageToSend) {
+    return ctx.reply('Veuillez fournir le message à envoyer. Exemple: /send Votre message ici');
+  }
+  const users = await User.find().select('id');
+  let successCount = 0;
+  for (const user of users) {
+    try {
+      await bot.telegram.sendMessage(user.id, messageToSend);
+      successCount++;
+    } catch (error) {
+      console.error(`Erreur envoi message à ${user.id}:`, error.message);
+    }
+  }
+  ctx.reply(`✅ Message envoyé à ${successCount}/${users.length} utilisateurs.`);
 });
 
 // Processus de retrait via messages texte
@@ -214,7 +259,7 @@ bot.on('text', async (ctx) => {
       await withdrawal.save();
 
       await ctx.reply('✅ Demande enregistrée !');
-      await bot.telegram.sendMessage(
+      await sendMessage(
         ADMIN_ID,
         `💸 Nouveau retrait\n\n` +
         `👤 Utilisateur: @${ctx.from.username || 'N/A'}\n` +
@@ -229,66 +274,20 @@ bot.on('text', async (ctx) => {
   }
 });
 
-// Démarrage du bot et du serveur HTTP
-bot.launch()
-  .then(() => console.log('🚀 Bot démarré !'))
-  .catch(err => {
-    console.error('❌ Erreur de démarrage:', err);
-    process.exit(1);
-  });
-
-http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('Bot en ligne');
-}).listen(8080);
-
-// Système Admin
-bot.command('admin', async (ctx) => {
-  console.log('Commande /admin reçue');
-  try {
-    console.log('ID de l\'utilisateur :', ctx.from.id);
-    console.log('ID admin configuré :', ADMIN_ID);
-
-    // Vérifiez si l'utilisateur est admin
-    if (String(ctx.from.id) !== ADMIN_ID) {
-      console.log('Accès refusé : ID ne correspond pas');
-      return ctx.reply('❌ Accès refusé. Vous n\'êtes pas administrateur.');
-    }
-
-    // Affichez le menu admin
-    await ctx.replyWithMarkdown('🔧 *Menu Admin*', {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '👥 Total Utilisateurs', callback_data: 'admin_users' }],
-          [{ text: '📅 Utilisateurs/mois', callback_data: 'admin_month' }],
-          [{ text: '📢 Diffuser message', callback_data: 'admin_broadcast' }]
-        ]
-      }
-    });
-  } catch (error) {
-    console.error('Erreur dans la commande /admin :', error);
-    ctx.reply('❌ Une erreur est survenue. Veuillez réessayer.');
-  }
-});
-
+// Gestion des callbacks admin pour statistiques et diffusion
 const broadcastState = new Map();
-
 bot.on('callback_query', async (ctx) => {
   const userId = String(ctx.from.id);
   const data = ctx.callbackQuery.data;
-
-  console.log('Callback reçu :', data);
 
   if (userId === ADMIN_ID) {
     try {
       if (data === 'admin_users') {
         const count = await User.countDocuments();
-        console.log('Nombre total d\'utilisateurs :', count);
         await ctx.replyWithMarkdown(`👥 *Total utilisateurs:* ${count}`);
       } else if (data === 'admin_month') {
         const start = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
         const count = await User.countDocuments({ createdAt: { $gte: start } });
-        console.log('Utilisateurs ce mois-ci :', count);
         await ctx.replyWithMarkdown(`📅 *Ce mois-ci:* ${count}`);
       } else if (data === 'admin_broadcast') {
         broadcastState.set(userId, { step: 'awaiting_message' });
@@ -300,9 +299,7 @@ bot.on('callback_query', async (ctx) => {
         const [_, chatId, messageId] = data.split('_');
         const users = await User.find().select('id');
         let success = 0;
-
         await ctx.reply(`Début diffusion à ${users.length} utilisateurs...`);
-
         for (const user of users) {
           try {
             await bot.telegram.copyMessage(user.id, chatId, messageId);
@@ -311,7 +308,6 @@ bot.on('callback_query', async (ctx) => {
             console.error(`Échec à ${user.id}:`, error.message);
           }
         }
-
         await ctx.reply(`✅ Diffusion terminée : ${success}/${users.length} réussis`);
       }
     } catch (error) {
@@ -319,32 +315,23 @@ bot.on('callback_query', async (ctx) => {
       await ctx.reply('❌ Erreur de traitement');
     }
   }
-
   await ctx.answerCbQuery();
-});
-
-bot.on('message', async (msgCtx) => {
-  const userId = String(msgCtx.from.id);
-  const state = broadcastState.get(userId);
-
-  if (state && state.step === 'awaiting_message') {
-    const messageId = msgCtx.message.message_id;
-    const chatId = msgCtx.chat.id;
-
-    await msgCtx.replyWithMarkdown('Confirmer la diffusion ?', {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '✅ Oui', callback_data: `broadcast_${chatId}_${messageId}` }],
-          [{ text: '❌ Non', callback_data: 'broadcast_cancel' }]
-        ]
-      }
-    });
-
-    broadcastState.delete(userId); // Réinitialiser l'état
-  }
 });
 
 // Gestion globale des erreurs
 bot.catch((err, ctx) => {
   console.error(`❌ Erreur pour ${ctx.updateType}:`, err);
 });
+
+// Démarrage du bot et création du serveur HTTP
+bot.launch()
+  .then(() => console.log('🚀 Bot démarré !'))
+  .catch(err => {
+    console.error('❌ Erreur de démarrage:', err);
+    process.exit(1);
+  });
+
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Bot en ligne');
+}).listen(8080);
