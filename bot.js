@@ -93,15 +93,15 @@ bot.start(async (ctx) => {
 
   await registerUser(userId, username, referrerId);
 
-  await sendMessage(userId, `**Bienvenue sur CashXelitebot le platforme qui vas te faire gagner du cash !**\n Rejoignez les canaux pour debloquer ton acces:`, {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: 'Canal 1', url: 'https://t.me/+NS16bwRVpBs1ZGM0' }],
-        [{ text: 'Canal 2', url: 'https://t.me/+rSXyxHTwcN5lNWE0' }],
-        [{ text: '✅ Vérifier', callback_data: 'check' }]
-      ]
-    }
-  });
+await sendMessage(userId, `*Bienvenue sur CashXelitebot la plateforme qui va te faire gagner du cash\\!*\nRejoignez les canaux pour débloquer ton accès :`, {
+  parse_mode: 'MarkdownV2',
+  reply_markup: {
+    inline_keyboard: [
+      [{ text: 'Canal 1', url: 'https://t.me/+NS16bwRVpBs1ZGM0' }],
+      [{ text: 'Canal 2', url: 'https://t.me/+rSXyxHTwcN5lNWE0' }],
+      [{ text: '✅ Vérifier', callback_data: 'check' }]
+    ]
+  }
 });
 
 // Vérification de l'abonnement aux canaux et attribution de la récompense si applicable
