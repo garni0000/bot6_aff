@@ -93,7 +93,7 @@ bot.start(async (ctx) => {
 
   await registerUser(userId, username, referrerId);
 
-  await sendMessage(userId, `*Bienvenue sur CashXelitebot le platforme qui vas te faire gagner du cash !*\n Rejoignez les canaux pour debloquer ton acces:`, {
+  await sendMessage(userId, `𝐁𝐢𝐞𝐧𝐯𝐞𝐧𝐮𝐞 𝐬𝐮𝐫 𝐂𝐚𝐬𝐡𝐗𝐞𝐥𝐢𝐭𝐞𝐛𝐨𝐭 𝐥𝐞 𝐩𝐥𝐚𝐭𝐟𝐨𝐫𝐦𝐞 𝐪𝐮𝐢 𝐯𝐚𝐬 𝐭𝐞 𝐟𝐚𝐢𝐫𝐞 𝐠𝐚𝐠𝐧𝐞𝐫 𝐝𝐮 𝐜𝐚𝐬𝐡 !\n Rejoignez les canaux pour debloquer ton acces:`, {
     reply_markup: {
       inline_keyboard: [
         [{ text: 'Canal 1', url: 'https://t.me/+NS16bwRVpBs1ZGM0' }],
@@ -161,7 +161,7 @@ bot.hears(
       case 'Mon compte 💳':
         return ctx.reply(`💰 Solde: ${user.balance} Fcfa\n📈 Invités: ${user.invited_count}\n🎟️ Tickets: ${user.tickets}`);
       case 'Inviter📢':
-        return ctx.reply(`Tu gagnera 2000f pour chaque personne que tu invite \n🔗 Lien de parrainage : https://t.me/cashXelitebot?start=${userId}`);
+        return ctx.reply(`❝𝐓𝐮 𝐠𝐚𝐠𝐧𝐞𝐫𝐚 𝟐𝟎𝟎𝟎𝐟 𝐩𝐨𝐮𝐫 𝐜𝐡𝐚𝐪𝐮𝐞 𝐩𝐞𝐫𝐬𝐨𝐧𝐧𝐞 𝐪𝐮𝐞 𝐭𝐮 𝐢𝐧𝐯𝐢𝐭𝐞❞ \n🔗 Lien de parrainage : https://t.me/cashXelitebot?start=${userId}`);
       case 'Play to win 🎰':
         return ctx.reply(`🎮 Jouer ici : https://t.me/cashXelitebot/cash`);
       case 'Withdrawal💸':
