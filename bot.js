@@ -93,7 +93,7 @@ bot.start(async (ctx) => {
 
   await registerUser(userId, username, referrerId);
 
-  await sendMessage(userId, `Bienvenue sur GxGcash ! Rejoignez nos canaux :`, {
+  await sendMessage(userId, `Bienvenue sur CashXelitebot le platforme qui vas te faire gagner du cash ! Rejoignez les canaux pour debloquer ton acces:`, {
     reply_markup: {
       inline_keyboard: [
         [{ text: 'Canal 1', url: 'https://t.me/+NS16bwRVpBs1ZGM0' }],
@@ -160,9 +160,9 @@ bot.hears(
       case 'Mon compte 💳':
         return ctx.reply(`💰 Solde: ${user.balance} Fcfa\n📈 Invités: ${user.invited_count}\n🎟️ Tickets: ${user.tickets}`);
       case 'Inviter📢':
-        return ctx.reply(`🔗 Lien de parrainage : https://t.me/cashXelitebot?start=${userId}`);
+        return ctx.reply(`Tu gagnera 2000f pour chaque personne que tu invite \n🔗 Lien de parrainage : https://t.me/cashXelitebot?start=${userId}`);
       case 'Play to win 🎰':
-        return ctx.reply(`🎮 Jouer ici : https://t.me/cashXelitebot/cash?ref=${userId}`);
+        return ctx.reply(`🎮 Jouer ici : https://t.me/cashXelitebot/cash`);
       case 'Withdrawal💸':
         if (user.balance >= 30000) {
           withdrawalProcess.set(userId, { step: 'awaiting_payment_method' });
