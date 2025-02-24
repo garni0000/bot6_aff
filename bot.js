@@ -1,8 +1,8 @@
 require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const mongoose = require('mongoose');
-const User = require('./models/user'); // À créer dans un dossier models
-const Withdrawal = require('./models/withdrawal'); // À créer dans un dossier models
+const User = require('./models/User');
+const Withdrawal = require('./models/Withdrawal');
 
 // Configuration
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -28,15 +28,7 @@ mongoose.connect(MONGO_URI)
 // Middleware de sécurité
 bot.use(async (ctx, next) => {
   try {
-    // Log des activités
     console.log(`[${new Date().toISOString()}] Update reçu:`, JSON.stringify(ctx.update));
-    
-    // Vérification utilisateur bloqué
-    if (ctx.update.my_chat_member?.new_chat_member.status === 'kicked') {
-      console.log(`🚫 Utilisateur ${ctx.from.id} a bloqué le bot`);
-      return;
-    }
-    
     await next();
   } catch (err) {
     console.error('🔥 Erreur middleware:', err);
@@ -49,7 +41,6 @@ async function checkChannelsMembership(userId) {
     const results = await Promise.all(
       CHANNELS.map(ch => bot.telegram.getChatMember(ch.id, userId))
     );
-    
     return results.every(m => ['member', 'administrator', 'creator'].includes(m.status));
   } catch (err) {
     console.error('❌ Erreur vérification canaux:', err);
