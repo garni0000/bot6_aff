@@ -49,9 +49,7 @@ bot.use(async (ctx, next) => {
   await next();
 });
 
-// Fonctions utilitaires
-
-// Vérifie si l'utilisateur est abonné aux deux canaux
+// Fonction utilitaire : Vérifie si l'utilisateur est abonné aux deux canaux
 async function isUserInChannels(userId) {
   try {
     const member1 = await bot.telegram.getChatMember('-1001923341484', userId);
@@ -64,7 +62,7 @@ async function isUserInChannels(userId) {
   }
 }
 
-// Enregistre l'utilisateur et gère le parrainage
+// Fonction utilitaire : Enregistre l'utilisateur et gère le parrainage
 async function registerUser(userId, username, referrerId) {
   try {
     let user = await User.findOne({ id: userId });
@@ -82,7 +80,7 @@ async function registerUser(userId, username, referrerId) {
   }
 }
 
-// Met à jour le solde de l'utilisateur selon le nombre d'invitations
+// Fonction utilitaire : Met à jour le solde de l'utilisateur selon le nombre d'invitations
 async function updateUserBalance(userId) {
   const user = await User.findOne({ id: userId });
   if (user) {
@@ -96,7 +94,7 @@ async function updateUserBalance(userId) {
   }
 }
 
-// Notifie le parrain lors d'une inscription via son lien
+// Fonction utilitaire : Notifie le parrain lors d'une inscription via son lien
 async function notifyReferrer(referrerId, newUserId) {
   try {
     const referrer = await User.findOne({ id: referrerId });
@@ -127,7 +125,7 @@ bot.start(async (ctx) => {
   });
 });
 
-// Vérification de l'abonnement aux canaux
+// Action "check" : Vérification de l'abonnement aux canaux
 bot.action('check', async (ctx) => {
   const userId = ctx.from.id;
   if (await isUserInChannels(userId)) {
@@ -350,4 +348,3 @@ bot.on('message', async (msgCtx) => {
 bot.catch((err, ctx) => {
   console.error(`❌ Erreur pour ${ctx.updateType}:`, err);
 });
-
