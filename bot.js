@@ -66,11 +66,11 @@ async function registerUser(userId, username, referrerId) {
 async function updateUserBalance(userId) {
   const user = await User.findOne({ id: userId });
   if (user) {
-    let bonus = 2000;
-    if (user.invited_count >= 11) {
-      bonus = 3000;
-    } else if (user.invited_count >= 6) {
-      bonus = 2500;
+    let bonus = 200;
+    if (user.invited_count >= 10) {
+      bonus = 300;
+    } else if (user.invited_count >= 20) {
+      bonus = 400;
     }
     await User.updateOne({ id: userId }, { balance: user.invited_count * bonus });
   }
@@ -161,15 +161,15 @@ bot.hears(
       case 'Mon compte 💳':
         return ctx.reply(`💰 Solde: ${user.balance} Fcfa\n📈 Invités: ${user.invited_count}\n🎟️ Tickets: ${user.tickets}`);
       case 'Inviter📢':
-        return ctx.reply(`❝𝐓𝐮 𝐠𝐚𝐠𝐧𝐞𝐫𝐚 𝟐𝟎𝟎𝟎𝐟 𝐩𝐨𝐮𝐫 𝐜𝐡𝐚𝐪𝐮𝐞 𝐩𝐞𝐫𝐬𝐨𝐧𝐧𝐞 𝐪𝐮𝐞 𝐭𝐮 𝐢𝐧𝐯𝐢𝐭𝐞❞ \n🔗 Lien de parrainage : https://t.me/cashXelitebot?start=${userId}`);
+        return ctx.reply(`❝𝙏𝙪 𝙜𝙖𝙜𝙣𝙚𝙧𝙖𝙨 𝟮𝟬𝟬 𝙁𝘾𝙁𝘼 𝙥𝙤𝙪𝙧 𝙘𝙝𝙖𝙦𝙪𝙚 𝙥𝙚𝙧𝙨𝙤𝙣𝙣𝙚 𝙦𝙪𝙚 𝙩𝙪 𝙞𝙣𝙫𝙞𝙩𝙚𝙨.❞ \n🔗 Lien de parrainage : https://t.me/cashXelitebot?start=${userId} \n ❝🔹 𝐈𝐧𝐯𝐢𝐭𝐞 𝐭𝐞𝐬 𝐚𝐦𝐢𝐬 𝐞𝐭 𝐫𝐞ç𝐨𝐢𝐬 𝐮𝐧𝐞 𝐫é𝐜𝐨𝐦𝐩𝐞𝐧𝐬𝐞 :\n✅ 𝟏 à 𝟏𝟎 𝐚𝐦𝐢𝐬 → 𝟐𝟎𝟎 𝐅𝐂𝐅𝐀 𝐩𝐚𝐫 𝐢𝐧𝐯𝐢𝐭𝐚𝐭𝐢𝐨𝐧\n✅ 𝟏𝟎 à 𝟐𝟎 𝐚𝐦𝐢𝐬 → 𝟑𝟎𝟎 𝐅𝐂𝐅𝐀 𝐩𝐚𝐫 𝐢𝐧𝐯𝐢𝐭𝐚𝐭𝐢𝐨𝐧\n✅ 𝟐𝟎 𝐚𝐦𝐢𝐬 𝐨𝐮 𝐩𝐥𝐮𝐬 → 𝟒𝟎𝟎 𝐅𝐂𝐅𝐀 𝐩𝐚𝐫 𝐢𝐧𝐯𝐢𝐭𝐚𝐭𝐢𝐨𝐧📲 𝐏𝐥𝐮𝐬 𝐭𝐮 𝐢𝐧𝐯𝐢𝐭𝐞𝐬, 𝐩𝐥𝐮𝐬 𝐭𝐮 𝐠𝐚𝐠𝐧𝐞𝐬 ! 🚀🔥❞`);
       case 'Play to win 🎰':
         return ctx.reply(`🎮 Jouer ici : https://t.me/cashXelitebot/cash`);
       case 'Withdrawal💸':
-        if (user.balance >= 30000) {
+        if (user.balance >= 10000) {
           withdrawalProcess.set(userId, { step: 'awaiting_payment_method' });
           return ctx.reply('💸 Méthode de paiement :');
         } else {
-          return ctx.reply('❌ Minimum 30 000 Fcfa');
+          return ctx.reply('❌ Minimum 10 000 Fcfa');
         }
       case 'Support📩':
         return ctx.reply('📩 Contact : @Medatt00');
