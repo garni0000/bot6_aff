@@ -1,10 +1,18 @@
 const { Telegraf } = require('telegraf');
 const http = require('http');
 const { User, Withdrawal } = require('./database');
+const dotenv = require('dotenv');
 
-const bot = new Telegraf('7693938099:AAHdfvjtHj0HGukmfVfF5jNv-WWceB3Ka9c'); // Remplacez par votre token
+// Charger les variables d'environnement depuis .env
+dotenv.config();
+
+// Récupérer les variables d'environnement
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const MONGO_URI = process.env.MONGO_URI;
+const ADMIN_ID = process.env.ADMIN_ID;
+
+const bot = new Telegraf(BOT_TOKEN); // Utilisation du token depuis .env
 const withdrawalProcess = new Map();
-const ADMIN_ID = '1613186921'; // Remplacez par votre ID Telegram admin (en string)
 
 // Middleware de débogage et gestion d'erreurs
 bot.use(async (ctx, next) => {
@@ -104,7 +112,6 @@ bot.start(async (ctx) => {
     }
   });
 });
-
 
 // Vérification de l'abonnement aux canaux et attribution de la récompense si applicable
 bot.action('check', async (ctx) => {
