@@ -17,10 +17,10 @@
   "author": "TonNom",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^16.0.3", // Pour gérer les variables d'environnement
-    "mongoose": "^8.0.3", // Pour interagir avec MongoDB
-    "telegraf": "^4.12.2", // Framework pour créer des bots Telegram
-    "http": "^0.0.1-security" // Pour créer un serveur HTTP simple
+    "dotenv": "^16.0.3", 
+    "mongoose": "^8.0.3", 
+    "telegraf": "^4.12.2", 
+    "http": "^0.0.1-security" 
   },
   "devDependencies": {
     "nodemon": "^3.0.2" // Pour redémarrer automatiquement le serveur lors des changements (optionnel)
