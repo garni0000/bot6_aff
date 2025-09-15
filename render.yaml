@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: express-hello-world
-    env: node
-    buildCommand: npm install
-    startCommand: node index.js
-    plan: free
