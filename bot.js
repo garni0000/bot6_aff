@@ -7,9 +7,45 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 // Récupérer les variables d'environnement
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const MONGO_URI = process.env.MONGO_URI;
-const ADMIN_ID = process.env.ADMIN_ID;
+const BOT_TOKEN = process.env.BOT_TOKEN?.trim();
+const MONGO_URI = process.env.MONGO_URI?.trim();
+const ADMIN_ID = process.env.ADMIN_ID?.trim();
+
+// Validation des variables d'environnement requises
+if (!BOT_TOKEN) {
+  console.error('❌ BOT_TOKEN manquant dans les variables d\'environnement');
+  process.exit(1);
+}
+
+if (!MONGO_URI) {
+  console.error('❌ MONGO_URI manquant dans les variables d\'environnement');
+  process.exit(1);
+}
+
+if (!ADMIN_ID) {
+  console.error('❌ ADMIN_ID manquant dans les variables d\'environnement');
+  process.exit(1);
+}
+
+// Validation du format du BOT_TOKEN (format standard Telegram: 123456789:ABCdefGHI...)
+if (!/^\d{9,10}:[A-Za-z0-9_-]{35,}$/.test(BOT_TOKEN)) {
+  console.error('❌ BOT_TOKEN invalide ou mal formaté. Le token doit être au format: 123456789:ABCdefGHI...');
+  console.error('   Obtenez un nouveau token depuis @BotFather sur Telegram');
+  process.exit(1);
+}
+
+// Validation du format MONGO_URI (doit commencer par mongodb:// ou mongodb+srv://)
+if (!/^mongodb(\+srv)?:\/\/.+/.test(MONGO_URI)) {
+  console.error('❌ MONGO_URI invalide. L\'URI doit commencer par mongodb:// ou mongodb+srv://');
+  process.exit(1);
+}
+
+// Validation du format ADMIN_ID (doit être un nombre)
+if (!/^\d+$/.test(ADMIN_ID)) {
+  console.error('❌ ADMIN_ID invalide. L\'ID doit être un nombre (ex: 1613186921)');
+  console.error('   Obtenez votre ID depuis @userinfobot sur Telegram');
+  process.exit(1);
+}
 
 const bot = new Telegraf(BOT_TOKEN); // Utilisation du token depuis .env
 const withdrawalProcess = new Map();
@@ -192,7 +228,8 @@ bot.hears(
               inline_keyboard: [
                 [{ text: '👥 Total Utilisateurs', callback_data: 'admin_users' }],
                 [{ text: '📅 Utilisateurs/mois', callback_data: 'admin_month' }],
-                [{ text: '📢 Diffuser message', callback_data: 'admin_broadcast' }]
+                [{ text: '📢 Diffuser message', callback_data: 'admin_broadcast' }],
+                [{ text: '🗑️ Nettoyer base de données', callback_data: 'admin_cleanup' }]
               ]
             }
           });
@@ -214,7 +251,8 @@ bot.command('admin', async (ctx) => {
       inline_keyboard: [
         [{ text: '👥 Total Utilisateurs', callback_data: 'admin_users' }],
         [{ text: '📅 Utilisateurs/mois', callback_data: 'admin_month' }],
-        [{ text: '📢 Diffuser message', callback_data: 'admin_broadcast' }]
+        [{ text: '📢 Diffuser message', callback_data: 'admin_broadcast' }],
+        [{ text: '🗑️ Nettoyer base de données', callback_data: 'admin_cleanup' }]
       ]
     }
   });
@@ -260,8 +298,16 @@ bot.command('send', async (ctx) => {
 
   const users = await User.find().select('id');
   let successCount = 0;
+  let blockedCount = 0;
+  let invalidCount = 0;
 
   for (const user of users) {
+    if (!user.id || user.id === undefined || user.id === null) {
+      invalidCount++;
+      await User.deleteOne({ _id: user._id });
+      continue;
+    }
+
     try {
       if (mediaType) {
         const options = { caption: messageToSend };
@@ -297,11 +343,18 @@ bot.command('send', async (ctx) => {
       }
       successCount++;
     } catch (error) {
-      console.error(`Erreur envoi à ${user.id}:`, error.message);
+      if (error.response?.error_code === 403) {
+        blockedCount++;
+        await User.deleteOne({ id: user.id });
+      }
     }
   }
 
-  await ctx.reply(`✅ Message diffusé à ${successCount}/${users.length} utilisateurs.`);
+  await ctx.reply(
+    `✅ Message diffusé à ${successCount}/${users.length} utilisateurs.\n` +
+    `🗑️ ${blockedCount} utilisateurs bloqués supprimés\n` +
+    `⚠️ ${invalidCount} entrées invalides nettoyées`
+  );
 });
 
 
@@ -377,6 +430,12 @@ bot.on('callback_query', async (ctx) => {
   const userId = String(ctx.from.id);
   const data = ctx.callbackQuery.data;
 
+  try {
+    await ctx.answerCbQuery();
+  } catch (error) {
+    console.error('Erreur answerCbQuery:', error.message);
+  }
+
   if (userId === ADMIN_ID) {
     try {
       if (data === 'admin_users') {
@@ -386,6 +445,27 @@ bot.on('callback_query', async (ctx) => {
         const start = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
         const count = await User.countDocuments({ createdAt: { $gte: start } });
         await ctx.replyWithMarkdown(`📅 *Ce mois-ci:* ${count}`);
+      } else if (data === 'admin_cleanup') {
+        const beforeCount = await User.countDocuments();
+        await ctx.reply('🧹 Nettoyage en cours...');
+        
+        const invalidCount = await User.deleteMany({ 
+          $or: [
+            { id: null }, 
+            { id: undefined },
+            { id: { $exists: false } }
+          ] 
+        });
+        
+        const afterCount = await User.countDocuments();
+        const deleted = beforeCount - afterCount;
+        
+        await ctx.replyWithMarkdown(
+          `✅ *Nettoyage terminé*\n\n` +
+          `🗑️ ${deleted} entrées invalides supprimées\n` +
+          `👥 ${afterCount} utilisateurs dans la base\n\n` +
+          `ℹ️ *Note:* Les utilisateurs bloqués sont automatiquement supprimés lors de la diffusion de messages.`
+        );
       } else if (data === 'admin_broadcast') {
         broadcastState.set(userId, { step: 'awaiting_message' });
         await ctx.reply('📤 Envoyez le message à diffuser :');
@@ -412,7 +492,6 @@ bot.on('callback_query', async (ctx) => {
       await ctx.reply('❌ Erreur de traitement');
     }
   }
-  await ctx.answerCbQuery();
 });
 
 // Gestion globale des erreurs
