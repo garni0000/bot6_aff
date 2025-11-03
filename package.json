@@ -23,6 +23,6 @@
     "http": "^0.0.1-security" 
   },
   "devDependencies": {
-    "nodemon": "^3.0.2" // Pour redémarrer automatiquement le serveur lors des changements (optionnel)
+    "nodemon": "^3.0.2"
   }
 }
