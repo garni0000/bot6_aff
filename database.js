@@ -24,6 +24,7 @@ const userSchema = new mongoose.Schema({
   tickets: { type: Number, default: 0 },
   balance: { type: Number, default: 0 },
   joined_channels: { type: Boolean, default: false },
+  pending_join_requests: { type: [String], default: [] }, // IDs des canaux avec join request en attente
   createdAt: { type: Date, default: Date.now },
 });
 
