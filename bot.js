@@ -80,12 +80,32 @@ async function sendMessage(chatId, text, options = {}) {
 }
 
 // Vérifie si l'utilisateur est abonné aux deux canaux
+// Accepte aussi les join requests en attente
 async function isUserInChannels(userId) {
   try {
-    const member1 = await bot.telegram.getChatMember('-1002017559099', userId);
-    const member2 = await bot.telegram.getChatMember('-1002191790432', userId);
-    return ['member', 'administrator', 'creator'].includes(member1.status) &&
-           ['member', 'administrator', 'creator'].includes(member2.status);
+    const channelIds = ['-1001923341484', '-1002017559099','-1002035790146','-1002191790432'];
+    const user = await User.findOne({ id: userId });
+    
+    for (const channelId of channelIds) {
+      try {
+        const member = await bot.telegram.getChatMember(channelId, userId);
+        const isActiveMember = ['member', 'administrator', 'creator'].includes(member.status);
+        const hasPendingRequest = user && Array.isArray(user.pending_join_requests) && user.pending_join_requests.includes(channelId);
+        
+        // L'utilisateur doit soit être membre actif, soit avoir un join request en attente
+        if (!isActiveMember && !hasPendingRequest) {
+          return false;
+        }
+      } catch (err) {
+        // Si erreur lors de la vérification, vérifier si join request en attente
+        const hasPendingRequest = user && Array.isArray(user.pending_join_requests) && user.pending_join_requests.includes(channelId);
+        if (!hasPendingRequest) {
+          return false;
+        }
+      }
+    }
+    
+    return true;
   } catch (err) {
     console.error('❌ Erreur vérification canaux:', err);
     return false;
@@ -140,9 +160,10 @@ bot.start(async (ctx) => {
   await sendMessage(userId, `𝐁𝐢𝐞𝐧𝐯𝐞𝐧𝐮𝐞 𝐬𝐮𝐫 𝐂𝐚𝐬𝐡𝐗𝐞𝐥𝐢𝐭𝐞𝐛𝐨𝐭 𝐥𝐞 𝐩𝐥𝐚𝐭𝐟𝐨𝐫𝐦𝐞 𝐪𝐮𝐢 𝐯𝐚𝐬 𝐭𝐞 𝐟𝐚𝐢𝐫𝐞 𝐠𝐚𝐠𝐧𝐞𝐫 𝐝𝐮 𝐜𝐚𝐬𝐡 !\n Rejoignez les canaux pour debloquer ton acces:`, {
     reply_markup: {
       inline_keyboard: [
-        [{ text: 'Canal 1', url: 'https://t.me/+z73xstC898s4N2Zk' }],
-         [{ text: 'Canal 2', url: 'https://t.me/+z7Ri0edvkbw4MDM0' }],
-        [{ text: 'Canal 3', url: 'https://t.me/+rSXyxHTwcN5lNWE0' }],
+        [{ text: 'Canal 1', url: 'https://t.me/+iMBlAdr2njQ0MWQ0' }],
+         [{ text: 'Canal 2', url: 'https://t.me/+SU950tdHhBpkYmJk' }],
+        [{ text: 'Canal 3', url: 'https://t.me/jusheymoney' }],
+         [{ text: 'Canal 4', url: 'https://t.me/+hU_Xlz9WIvY4ZWU8' }],
         [{ text: '✅ Vérifier', callback_data: 'check' }]
       ]
     }
@@ -491,6 +512,42 @@ bot.on('callback_query', async (ctx) => {
       console.error('Erreur admin:', error);
       await ctx.reply('❌ Erreur de traitement');
     }
+  }
+});
+
+// Enregistrement des join requests pour les canaux privés
+bot.on('chat_join_request', async (ctx) => {
+  try {
+    const userId = ctx.chatJoinRequest.from.id;
+    const chatId = String(ctx.chatJoinRequest.chat.id);
+    const username = ctx.chatJoinRequest.from.username || 'Utilisateur';
+    
+    console.log(`📥 Join request reçu de ${username} (${userId}) pour le canal ${chatId}`);
+    
+    // Enregistrer le join request dans la base de données
+    const user = await User.findOne({ id: userId });
+    if (user) {
+      // S'assurer que le champ existe et est un tableau
+      const pendingRequests = Array.isArray(user.pending_join_requests) ? user.pending_join_requests : [];
+      if (!pendingRequests.includes(chatId)) {
+        await User.updateOne(
+          { id: userId }, 
+          { $addToSet: { pending_join_requests: chatId } }
+        );
+        console.log(`✅ Join request enregistré pour ${username} (${userId}) - Canal ${chatId}`);
+      }
+    } else {
+      // Si l'utilisateur n'existe pas encore, le créer avec le join request
+      await User.create({
+        id: userId,
+        username: username,
+        pending_join_requests: [chatId]
+      });
+      console.log(`✅ Nouvel utilisateur créé avec join request: ${username} (${userId})`);
+    }
+    
+  } catch (err) {
+    console.error('❌ Erreur lors de l\'enregistrement du join request:', err);
   }
 });
 
