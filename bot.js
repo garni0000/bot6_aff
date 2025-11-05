@@ -2,6 +2,7 @@ const { Telegraf } = require('telegraf');
 const http = require('http');
 const { User, Withdrawal } = require('./database');
 const dotenv = require('dotenv');
+const { generatePaymentReceipt } = require('./paymentGenerator');
 
 // Charger les variables d'environnement depuis .env
 dotenv.config();
@@ -49,6 +50,7 @@ if (!/^\d+$/.test(ADMIN_ID)) {
 
 const bot = new Telegraf(BOT_TOKEN); // Utilisation du token depuis .env
 const withdrawalProcess = new Map();
+const generatedReceipts = new Map(); // Stockage des reçus générés
 
 // Middleware de débogage et gestion d'erreurs
 bot.use(async (ctx, next) => {
@@ -378,7 +380,104 @@ bot.command('send', async (ctx) => {
   );
 });
 
+// Commande /genpaid - Génère un reçu de paiement
+bot.command('genpaid', async (ctx) => {
+  if (String(ctx.from.id) !== ADMIN_ID) {
+    return ctx.reply('❌ Accès refusé. Vous n\'êtes pas administrateur.');
+  }
 
+  try {
+    await ctx.reply('⏳ Génération du reçu en cours...');
+    
+    const receipt = generatePaymentReceipt();
+    if (!receipt || !receipt.buffer) {
+      throw new Error('Échec de la génération du reçu');
+    }
+    
+    const shareCount = Math.floor(receipt.amount / 400);
+    const receiptId = `${Date.now()}_${receipt.amount}`;
+    
+    generatedReceipts.set(receiptId, receipt);
+    
+    setTimeout(() => generatedReceipts.delete(receiptId), 10 * 60 * 1000);
+    
+    const username = ctx.from.username || 'ADMIN';
+    const caption = `🎉 New retrait pour Mr. ${username.substring(0, 3).toUpperCase()}.....\n\n` +
+      `💰 Montant retiré : ${receipt.amount.toLocaleString()} FCFA\n` +
+      `💳 Mode de paiement : Orange Money\n\n` +
+      `📊 Nombre de partages : ${shareCount}\n\n` +
+      `🤖 Bot : https://t.me/cashXelitebot`;
+
+    await ctx.replyWithPhoto(
+      { source: receipt.buffer },
+      {
+        caption: caption,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📢 Send to channel retrait', callback_data: `send_receipt_${receiptId}` }]
+          ]
+        }
+      }
+    );
+    
+    console.log(`✅ Reçu généré: ${receiptId}, Montant: ${receipt.amount} FCFA`);
+  } catch (error) {
+    console.error('❌ Erreur génération reçu:', error);
+    await ctx.reply(`❌ Erreur lors de la génération du reçu: ${error.message}`);
+  }
+});
+
+// Gestion du callback pour envoyer au canal retrait
+bot.action(/send_receipt_(.+)/, async (ctx) => {
+  if (String(ctx.from.id) !== ADMIN_ID) {
+    await ctx.answerCbQuery('❌ Accès refusé');
+    return;
+  }
+
+  try {
+    const receiptId = ctx.match[1];
+    
+    const receipt = generatedReceipts.get(receiptId);
+    if (!receipt) {
+      await ctx.answerCbQuery('❌ Reçu expiré ou non trouvé');
+      return ctx.reply('❌ Le reçu a expiré (10 min max). Veuillez générer un nouveau reçu avec /genpaid');
+    }
+    
+    const WITHDRAWAL_CHANNEL = process.env.RETRAIT_CHANNEL || '-1001923341484';
+    
+    const shareCount = Math.floor(receipt.amount / 400);
+    const username = ctx.from.username || 'ADMIN';
+    const caption = `🎉 New retrait pour Mr. ${username.substring(0, 3).toUpperCase()}.....\n\n` +
+      `💰 Montant retiré : ${receipt.amount.toLocaleString()} FCFA\n` +
+      `💳 Mode de paiement : Orange Money\n\n` +
+      `📊 Nombre de partages : ${shareCount}\n\n` +
+      `🤖 Bot : https://t.me/cashXelitebot`;
+
+    await bot.telegram.sendPhoto(
+      WITHDRAWAL_CHANNEL,
+      { source: receipt.buffer },
+      { caption: caption }
+    );
+    
+    await ctx.answerCbQuery('✅ Envoyé au canal!');
+    await ctx.reply('✅ Reçu de paiement envoyé avec succès au canal de retrait!');
+    
+    generatedReceipts.delete(receiptId);
+    
+    console.log(`✅ Reçu ${receiptId} envoyé au canal ${WITHDRAWAL_CHANNEL}`);
+  } catch (error) {
+    console.error('❌ Erreur envoi au canal:', error);
+    await ctx.answerCbQuery('❌ Erreur d\'envoi');
+    
+    if (error.response?.error_code === 400) {
+      await ctx.reply('❌ Impossible d\'envoyer au canal. Vérifiez que le bot est administrateur du canal.');
+    } else if (error.response?.error_code === 403) {
+      await ctx.reply('❌ Le bot n\'a pas la permission d\'envoyer des messages dans ce canal.');
+    } else {
+      await ctx.reply(`❌ Erreur lors de l'envoi: ${error.message}`);
+    }
+  }
+});
 
 
 
